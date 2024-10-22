@@ -1,4 +1,8 @@
-# Python Extension Example [paho_mqtt]
+# build-at-extension
 
-This is an example of pure python Kit extension. It is intended to be copied and serve as a template to create new extensions.
+This omniverse extension listens on a user-provided MQTT topic and forwards the data received to an internal omniverse bus, which can then be used by Action Graphs.  
 
+# Adding this extension
+
+In Omniverse, go to the Extensions window -> hamburger menu -> Settings.
+Under "Extension Search Paths", add this field: `git://github.com/purdue-ie-labs/build-at-extension.git?branch=main&dir=.`. This should discover the extension.
