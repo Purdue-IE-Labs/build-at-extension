@@ -1,1 +1,0 @@
-{"broker_name": "Central Broker", "host_ip": "192.168.4.128", "port": 8882, "user": "omni_user", "password": "Omniverse@123", "ca_crt": "C:\\Users\\iescale16\\Documents\\Kit\\apps\\exttest_ielabs_mqtt_addition\\exts\\paho_mqtt\\data\\ca.crt", "mqtt_topic": "", "custom_event": ""}
