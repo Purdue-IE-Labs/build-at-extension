@@ -4,10 +4,12 @@ import paho.mqtt.client as mqtt
 import carb.events
 import json
 import os
+from omni.kit.app import get_app
+import pathlib
 
 # Daisy_DATA = carb.events.type_from_string("ielabs.mqtt.TM_12_POS.Daisy")
 Rosie_DATA = carb.events.type_from_string("ielabs.mqtt.TM_12_POS.Rosie")
-bus = omni.kit.app.get_app().get_message_bus_event_stream()
+bus = get_app().get_message_bus_event_stream()
 
 # # Functions and vars are available to other extension as usual in python: `example.python_ext.some_public_function(x)`
 # def some_public_function(x: int):
@@ -27,6 +29,10 @@ class Paho_mqttExtension(omni.ext.IExt):
         self.client = mqtt.Client()
         self.client.on_connect = self.on_connect
         self.client.on_message = self.on_message
+        self.combo: ui.ComboBox
+        self.topic_event_type_ui_elements = []
+        self.topic_event_type = []
+        self.types = ["int", "float", "string", "array<int>", "array<float>", "array<string>"]
     
     def on_startup(self, ext_id):
         
@@ -43,17 +49,24 @@ class Paho_mqttExtension(omni.ext.IExt):
                 field_set = ui.HStack()
                 with field_set:      #old stuff- take it off
                     ui.Label("MQTT Topic", height = 20, width = 70)
-                    self.mqtt_topic_field = ui.StringField(height = 20, width = 250)
+                    topic_field = ui.StringField(height = 20, width = 200)
                     ui.Separator(height = 10)
+
                     ui.Label("Custom Event topic", height = 20, width = 100)
-                    self.custom_event_field = ui.StringField(height = 20, width = 250)
+                    custom_event_field = ui.StringField(height = 20, width = 200)
                     ui.Separator(height = 10)
-                    self.topic_count += 1  
+
+                    ui.Label("Data Type", height = 20, width = 50)
+                    combo = ui.ComboBox(0, *self.types)
+
+                    self.topic_event_type_ui_elements.append((topic_field, custom_event_field, combo))                    
                     ui.Button("Add", width=20, height=20, clicked_fn=topic_fields)
                     def remove_fields():      
+                        del self.topic_event_type_ui_elements[self.topic_count]
                         field_set.visible = False
                         self.topic_count -= 1
                     ui.Button("Remove", width=20, height=20, clicked_fn=remove_fields)
+                    self.topic_count += 1  
 
         def label_create_v(name,psw=False):    
             ui.Label(name, height = 20)
@@ -85,8 +98,8 @@ class Paho_mqttExtension(omni.ext.IExt):
                 ui.Button("Load Previous Details",height=20, clicked_fn=self.initialize_ui)
                  
     def save_ext_data(self):
-        file_path = r"C:\Users\iescale16\Documents\Kit\apps\exttest_ielabs_mqtt_addition\exts\paho_mqtt\data\ext_data.json"
-    # Ensure the directory exists before trying to save the file
+        file_path = pathlib.PurePath(__file__).parents[3] / "data" / "ext_data.json"
+        print(f"file path to save: {file_path}")
         os.makedirs(os.path.dirname(file_path), exist_ok=True)
         data = {
             "broker_name":self.broker_name,
@@ -95,8 +108,8 @@ class Paho_mqttExtension(omni.ext.IExt):
             "user":self.user,
             "password":self.password,
             "ca_crt":self.ca_crt,
-            "mqtt_topic":self.mqtt_topic,
-            "custom_event":self.custom_event
+            "mqtt_topic":0,
+            "custom_event":0
         }
         try:
             with open(file_path,"w") as json_file:
@@ -106,7 +119,7 @@ class Paho_mqttExtension(omni.ext.IExt):
             print("File not saved")    
             
     def load_ext_data(self):
-        file_path = r"C:\Users\iescale16\Documents\Kit\apps\exttest_ielabs_mqtt_addition\exts\paho_mqtt\data\ext_data.json"
+        file_path = pathlib.PurePath(__file__).parents[3] / "data" / "ext_data.json"
         try:
             with open(file_path,"r") as json_file:
                 data = json.load(json_file)
@@ -131,8 +144,10 @@ class Paho_mqttExtension(omni.ext.IExt):
         self.user_field.model.set_value(data.get("user",""))
         self.password_field.model.set_value(data.get("password",""))
         self.ca_crt_field.model.set_value(data.get("ca_crt",""))
-        self.mqtt_topic_field.model.set_value(data.get("mqtt_topic",""))
-        self.custom_event_field.model.set_value(data.get("custom_event",""))
+
+        for topic, event, type in self.topic_event_type_ui_elements:
+            topic.model.set_value("")
+            event.model.set_value("")
         print("Loaded into UI")
         
     def save_button(self):
@@ -142,28 +157,35 @@ class Paho_mqttExtension(omni.ext.IExt):
         self.user = self.user_field.model.get_value_as_string()      
         self.password = self.password_field.model.get_value_as_string()
         self.ca_crt = self.ca_crt_field.model.get_value_as_string()
-        self.mqtt_topic = self.mqtt_topic_field.model.get_value_as_string()
-        self.custom_event = self.custom_event_field.model.get_value_as_string()
         self.save_ext_data()
         
     def run_program(self): # Collect values from the input fields
-        
+        # self.data_type = self.combo.model.get_item_value_model().get_value_as_int()
         self.broker_name = self.broker_name_field.model.get_value_as_string()
         self.host_ip = self.host_ip_field.model.get_value_as_string()
         self.port = int(self.port_field.model.get_value_as_string())
         self.user = self.user_field.model.get_value_as_string()      
         self.password = self.password_field.model.get_value_as_string()
         self.ca_crt = self.ca_crt_field.model.get_value_as_string()
-        self.mqtt_topic = self.mqtt_topic_field.model.get_value_as_string()
-        self.custom_event = self.custom_event_field.model.get_value_as_string()
+
+        self.topic_event_type = []
+        for topic, event, type in self.topic_event_type_ui_elements:
+            topic = topic.model.get_value_as_string()
+            event = event.model.get_value_as_string()
+            type = self.types[type.model.get_item_value_model().get_value_as_int()]
+            self.topic_event_type.append((topic, event, type))
+
+        print(self.topic_event_type)
+        # self.mqtt_topic = self.mqtt_topic_field.model.get_value_as_string()
+        # self.custom_event = self.custom_event_field.model.get_value_as_string()
         
         try:
             self.client.connect(self.host_ip, self.port)
             self.client.username_pw_set(self.user, self.password)
             self.client.tls_set(ca_certs=self.ca_crt)
             self.client.loop_start()
-        except:
-            print("Not connected")
+        except Exception as e: 
+            print(f"Not connected {e}")
     
 
         # # Print the collected values (for debugging purposes)
@@ -180,32 +202,44 @@ class Paho_mqttExtension(omni.ext.IExt):
         print("Connected with result code " + str(rc))
         #self.client.subscribe(self.daisy_topic_subscribe)
         #self.client.subscribe(self.rosie_topic_subscribe)
-        self.client.subscribe(self.mqtt_topic)
+        for topic, _, _ in self.topic_event_type:
+            self.client.subscribe(topic)
+
+    def decode(self, message: str, type: str):
+        result = None
+        print(f"decoding {message} with type {type}")
+        match type:
+            case "int":
+                result = int(message)
+            case "float":
+                result = float(message)
+            case "string":
+                result = message
+            case "array<int>":
+                result = list(map(int, list(json.loads(message))))
+            case "array<float>":
+                result = list(map(float, list(json.loads(message))))
+            case "array<string>":
+                result = list(map(str, list(json.loads(message))))
+        return result
 
     def on_message(self, client, userdata, msg):
+        value = next((x for x in self.topic_event_type if x[0] == msg.topic), None)
+        if value is None:
+            print("error, couldnt' find topic")
+            return
+        topic, event, type = value
         
         # Decode the byte string to a regular string
         message_str = msg.payload.decode("utf-8")
         
-        # Print the received value
-        #print(f"Received value: {message_str}")
-        
-        # Convert the string to a list of floats
         try:
-            # Assume input_string is like "[0.1223,0,0,0,0,0]"
-            stripped_string = message_str.strip('[]')
-            double_array = [float(x) for x in stripped_string.split(',')]
-            
-            # Print the converted list
-            #print(f"Converted array: {double_array}")
-            # Push the list of doubles to the message bus as a string
-            Daisy_DATA = carb.events.type_from_string(self.custom_event)
-            bus.push(Daisy_DATA, payload={"msg": str(double_array)})
-            bus.push(Rosie_DATA, payload={"msg": str(double_array)})
+            message = self.decode(message_str, type)
+            print(f"sending message {message} on bus {event}")
+            event_type = carb.events.type_from_string(event)
+            bus.push(event_type, payload={"msg": message})
             topic = "Status_v2"
             self.client.publish(topic,self.broker_name)
         except ValueError as e:
-            print(f"Failed to convert input string to array of doubles: {e}")
+            print(f"Failed to convert input string to type: {e}")
             
-    def on_shutdown(self):
-        print("[paho_mqtt] paho_mqtt shutdown")
