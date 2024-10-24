@@ -8,14 +8,9 @@ from omni.kit.app import get_app
 import pathlib
 
 # Daisy_DATA = carb.events.type_from_string("ielabs.mqtt.TM_12_POS.Daisy")
+EXT_DATA_PATH = pathlib.PurePath(__file__).parents[3] / "data" / "ext_data.json"
 Rosie_DATA = carb.events.type_from_string("ielabs.mqtt.TM_12_POS.Rosie")
 bus = get_app().get_message_bus_event_stream()
-
-# # Functions and vars are available to other extension as usual in python: `example.python_ext.some_public_function(x)`
-# def some_public_function(x: int):
-#     print("[paho_mqtt] some_public_function was called with x: ", x)
-#     return x ** x
-
 
 # Any class derived from `omni.ext.IExt` in top level module (defined in `python.modules` of `extension.toml`) will be
 # instantiated when extension gets enabled and `on_startup(ext_id)` will be called. Later when extension gets disabled
@@ -31,8 +26,31 @@ class Paho_mqttExtension(omni.ext.IExt):
         self.client.on_message = self.on_message
         self.combo: ui.ComboBox
         self.topic_event_type_ui_elements = []
-        self.topic_event_type = []
         self.types = ["int", "float", "string", "array<int>", "array<float>", "array<string>"]
+        self.field_container: ui.VStack
+        self.topic_count = 0
+
+    def topic_fields(self):
+        with self.field_container:
+            field_set = ui.HStack()
+            with field_set:
+                ui.Label("MQTT Topic", height = 20, width = 70)
+                topic_field = ui.StringField(height = 20, width = 200)
+                ui.Separator(height = 10)
+                ui.Label("Custom Event topic", height = 20, width = 100)
+                custom_event_field = ui.StringField(height = 20, width = 200)
+                ui.Separator(height = 10)
+                ui.Label("Data Type", height = 20, width = 50)
+                combo = ui.ComboBox(0, *self.types)
+
+                self.topic_event_type_ui_elements.append((topic_field, custom_event_field, combo))                    
+                ui.Button("Add", width=20, height=20, clicked_fn=self.topic_fields)
+                def remove_fields():
+                    del self.topic_event_type_ui_elements[self.topic_count]
+                    field_set.visible = False
+                    self.topic_count -= 1
+                ui.Button("Remove", width=20, height=20, clicked_fn=remove_fields)
+                self.topic_count += 1
     
     def on_startup(self, ext_id):
         
@@ -44,29 +62,6 @@ class Paho_mqttExtension(omni.ext.IExt):
         # self.mqtt_topic = "Daisy_Joint_Positions"
         # self.custom_event = "ielabs.mqtt.TM_12_POS.Daisy"
         self.topic_count = 0
-        def topic_fields():
-            with field_container:
-                field_set = ui.HStack()
-                with field_set:      #old stuff- take it off
-                    ui.Label("MQTT Topic", height = 20, width = 70)
-                    topic_field = ui.StringField(height = 20, width = 200)
-                    ui.Separator(height = 10)
-
-                    ui.Label("Custom Event topic", height = 20, width = 100)
-                    custom_event_field = ui.StringField(height = 20, width = 200)
-                    ui.Separator(height = 10)
-
-                    ui.Label("Data Type", height = 20, width = 50)
-                    combo = ui.ComboBox(0, *self.types)
-
-                    self.topic_event_type_ui_elements.append((topic_field, custom_event_field, combo))                    
-                    ui.Button("Add", width=20, height=20, clicked_fn=topic_fields)
-                    def remove_fields():      
-                        del self.topic_event_type_ui_elements[self.topic_count]
-                        field_set.visible = False
-                        self.topic_count -= 1
-                    ui.Button("Remove", width=20, height=20, clicked_fn=remove_fields)
-                    self.topic_count += 1  
 
         def label_create_v(name,psw=False):    
             ui.Label(name, height = 20)
@@ -87,10 +82,10 @@ class Paho_mqttExtension(omni.ext.IExt):
                         self.user_field = label_create_v("User Name")  
                         self.password_field = label_create_v("Password",False)
                         self.ca_crt_field = label_create_v("CA Certificate path (for TLS)")
-
                 with ui.CollapsableFrame("Topics"):
-                    field_container = ui.VStack()
-                    topic_fields()
+                    self.field_container = ui.VStack()
+                    with self.field_container:
+                        self.topic_fields()
                 ui.Button("Execute",height=20, clicked_fn=self.run_program)
                 ui.Separator(height = 20)
                 ui.Button("Save Details",height=20, clicked_fn=self.save_button)
@@ -98,9 +93,8 @@ class Paho_mqttExtension(omni.ext.IExt):
                 ui.Button("Load Previous Details",height=20, clicked_fn=self.initialize_ui)
                  
     def save_ext_data(self):
-        file_path = pathlib.PurePath(__file__).parents[3] / "data" / "ext_data.json"
-        print(f"file path to save: {file_path}")
-        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+        print(f"file path to save: {EXT_DATA_PATH}")
+        os.makedirs(os.path.dirname(EXT_DATA_PATH), exist_ok=True)
         data = {
             "broker_name":self.broker_name,
             "host_ip":self.host_ip,
@@ -108,34 +102,41 @@ class Paho_mqttExtension(omni.ext.IExt):
             "user":self.user,
             "password":self.password,
             "ca_crt":self.ca_crt,
-            "mqtt_topic":0,
-            "custom_event":0
+            "topics":self.get_values_from_topics_ui()
         }
         try:
-            with open(file_path,"w") as json_file:
+            with open(EXT_DATA_PATH,"w") as json_file:
                 json.dump(data, json_file)
             print("Saved data successfully")
         except FileNotFoundError:
             print("File not saved")    
             
     def load_ext_data(self):
-        file_path = pathlib.PurePath(__file__).parents[3] / "data" / "ext_data.json"
         try:
-            with open(file_path,"r") as json_file:
+            with open(EXT_DATA_PATH,"r") as json_file:
                 data = json.load(json_file)
-                return data            
+                return data
         except FileNotFoundError:
             print("No saved data found.")
             return {
-            "broker_name":"default",
-            "host_ip":"default",
-            "port":"default",
-            "user":"default",
-            "password":"default",
-            "ca_crt":"default",
-            "mqtt_topic":"default",
-            "custom_event":"default"
+                "broker_name":"",
+                "host_ip":"",
+                "port":"",
+                "user":"",
+                "password":"",
+                "ca_crt":"",
+                "topics":"",
             }
+    
+    def get_values_from_topics_ui(self):
+        topics_events_types = []
+        for topic, event, type in self.topic_event_type_ui_elements:
+            to = topic.model.get_value_as_string()
+            e = event.model.get_value_as_string()
+            ty = type.model.get_item_value_model().get_value_as_int()
+            topics_events_types.append((to, e, ty))
+        return topics_events_types
+
     def initialize_ui(self):
         data = self.load_ext_data()
         self.broker_name_field.model.set_value(data.get("broker_name","")) 
@@ -144,10 +145,17 @@ class Paho_mqttExtension(omni.ext.IExt):
         self.user_field.model.set_value(data.get("user",""))
         self.password_field.model.set_value(data.get("password",""))
         self.ca_crt_field.model.set_value(data.get("ca_crt",""))
+        topics: list = list(data.get("topics", []))
+        print(f"topics saved: {topics}")
+        print(f"topic count: {self.topic_count}")
+        for _ in range(len(topics) - self.topic_count):
+           self.topic_fields() 
+        print(f"topic count: {self.topic_count}")
 
-        for topic, event, type in self.topic_event_type_ui_elements:
-            topic.model.set_value("")
-            event.model.set_value("")
+        for (topic, event, type), (topic_ui, event_ui, type_ui) in zip(topics, self.topic_event_type_ui_elements):
+            topic_ui.model.set_value(topic)
+            event_ui.model.set_value(event)
+            type_ui.model.get_item_value_model().set_value(type)
         print("Loaded into UI")
         
     def save_button(self):
@@ -186,13 +194,6 @@ class Paho_mqttExtension(omni.ext.IExt):
             self.client.loop_start()
         except Exception as e: 
             print(f"Not connected {e}")
-    
-
-        # # Print the collected values (for debugging purposes)
-        #     print(f"Running with values: Host IP: {host_ip}, Port: {port}, User: {user}, Password: {password}")
-
-        # # Run the __init__ method with the collected values
-        #     self.__init__(host_ip, port, user, password)
         
     def on_shutdown(self):
         print("[ielabs.mqtt.test] ielabs mqtt test shutdownc")
