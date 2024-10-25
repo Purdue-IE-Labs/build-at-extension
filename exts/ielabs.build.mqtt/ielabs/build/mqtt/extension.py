@@ -46,12 +46,12 @@ class Paho_mqttExtension(omni.ext.IExt):
 
                 elements = (topic_field, custom_event_field, combo)
                 self.topic_event_type_ui_elements.append(elements)                    
-                ui.Button("Add", width=20, height=20, clicked_fn=self.topic_fields)
+                ui.Button("Addition", width=20, height=20, clicked_fn=self.topic_fields)
                 def remove_fields():
                     try:
                         self.topic_event_type_ui_elements.remove(elements)
                     except ValueError as e:
-                        print("error, couldn't find ui elements")
+                        print("Error, couldn't find ui elements")
                     field_set.visible = False
                     self.topic_count -= 1
                     print(self.get_values_from_topics_ui())
