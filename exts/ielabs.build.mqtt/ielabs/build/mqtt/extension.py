@@ -29,6 +29,7 @@ class Paho_mqttExtension(omni.ext.IExt):
         self.types = ["int", "float", "string", "array<int>", "array<float>", "array<string>"]
         self.field_container: ui.VStack
         self.topic_count = 0
+        self.no_topics_button: ui.Button
 
     def topic_fields(self):
         with self.field_container:
@@ -43,27 +44,29 @@ class Paho_mqttExtension(omni.ext.IExt):
                 ui.Label("Data Type", height = 20, width = 50)
                 combo = ui.ComboBox(0, *self.types)
 
-                self.topic_event_type_ui_elements.append((topic_field, custom_event_field, combo))                    
+                elements = (topic_field, custom_event_field, combo)
+                self.topic_event_type_ui_elements.append(elements)                    
                 ui.Button("Add", width=20, height=20, clicked_fn=self.topic_fields)
                 def remove_fields():
-                    index = -1
-                    for j, i in enumerate(self.topic_event_type_ui_elements):
-                        if i == (topic_field, custom_event_field, combo):
-                            index = j
-                            break
-                    if index == -1:
+                    try:
+                        self.topic_event_type_ui_elements.remove(elements)
+                    except ValueError as e:
                         print("error, couldn't find ui elements")
-
-                    print(f"removing index: {index}")
-                    del self.topic_event_type_ui_elements[index]
                     field_set.visible = False
                     self.topic_count -= 1
                     print(self.get_values_from_topics_ui())
+                    if self.topic_count == 0:
+                        self.no_topics_button.visible = True
                 ui.Button("Remove", width=20, height=20, clicked_fn=remove_fields)
                 self.topic_count += 1
+
+    def no_topics_add_button(self):
+        def add_and_hide():
+            self.topic_fields()
+            self.no_topics_button.visible = False
+        self.no_topics_button = ui.Button("Add Topic", width=20, height=20, clicked_fn=add_and_hide)
     
     def on_startup(self, ext_id):
-        
         # self.host_ip = "192.168.4.128"
         # self.port = 8882
         # self.user = "omni_user"
@@ -92,6 +95,7 @@ class Paho_mqttExtension(omni.ext.IExt):
                         self.user_field = label_create_v("User Name")  
                         self.password_field = label_create_v("Password",False)
                         self.ca_crt_field = label_create_v("CA Certificate path (for TLS)")
+                        self.no_topics_add_button()
                 with ui.CollapsableFrame("Topics"):
                     self.field_container = ui.VStack()
                     with self.field_container:
@@ -178,7 +182,6 @@ class Paho_mqttExtension(omni.ext.IExt):
         self.save_ext_data()
         
     def run_program(self): # Collect values from the input fields
-        # self.data_type = self.combo.model.get_item_value_model().get_value_as_int()
         self.broker_name = self.broker_name_field.model.get_value_as_string()
         self.host_ip = self.host_ip_field.model.get_value_as_string()
         self.port = int(self.port_field.model.get_value_as_string())
@@ -192,10 +195,6 @@ class Paho_mqttExtension(omni.ext.IExt):
             event = event.model.get_value_as_string()
             type = self.types[type.model.get_item_value_model().get_value_as_int()]
             self.topic_event_type.append((topic, event, type))
-
-        print(self.topic_event_type)
-        # self.mqtt_topic = self.mqtt_topic_field.model.get_value_as_string()
-        # self.custom_event = self.custom_event_field.model.get_value_as_string()
         
         try:
             self.client.connect(self.host_ip, self.port)
@@ -211,8 +210,6 @@ class Paho_mqttExtension(omni.ext.IExt):
 
     def on_connect(self, client, userdata, flags, rc):
         print("Connected with result code " + str(rc))
-        #self.client.subscribe(self.daisy_topic_subscribe)
-        #self.client.subscribe(self.rosie_topic_subscribe)
         for topic, _, _ in self.topic_event_type:
             self.client.subscribe(topic)
 
@@ -236,14 +233,10 @@ class Paho_mqttExtension(omni.ext.IExt):
 
     def on_message(self, client, userdata, msg):
         for value in self.topic_event_type:
-            if value is None:
-                print("error, couldnt' find topic")
-                return
+            if value[0] != msg.topic: 
+                continue
             topic, event, type = value
-            
-            # Decode the byte string to a regular string
             message_str = msg.payload.decode("utf-8")
-            
             try:
                 message = self.decode(message_str, type)
                 print(f"sending message {message} on bus {event}")
@@ -252,5 +245,5 @@ class Paho_mqttExtension(omni.ext.IExt):
                 topic = "Status_v2"
                 self.client.publish(topic,self.broker_name)
             except ValueError as e:
-                print(f"Failed to convert input string to type: {e}")
+                print(f"Failed to convert input {message_str} to type {type}: {e}")
                 
