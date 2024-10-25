@@ -1,5 +1,8 @@
+import paho.mqtt
+import paho.mqtt.client
 import omni.ext
 import omni.ui as ui
+import paho
 import paho.mqtt.client as mqtt
 import carb.events
 import json
@@ -35,12 +38,14 @@ class Paho_mqttExtension(omni.ext.IExt):
         self.client = mqtt.Client()
         self.client.on_connect = self.on_connect
         self.client.on_message = self.on_message
+        self.client.on_disconnect = self.on_disconnect
         self.combo: ui.ComboBox
         self.topic_event_type_ui_elements = []
         self.field_container: ui.VStack
         self.topic_count = 0
         self.no_topics_button: ui.Button
         self.error_label: ui.Label
+        self.connect_button: ui.Button
 
     def topic_fields(self):
         with self.field_container:
@@ -65,7 +70,7 @@ class Paho_mqttExtension(omni.ext.IExt):
                         print("error, couldn't find ui elements")
                     field_set.visible = False
                     self.topic_count -= 1
-                    print(self.get_values_from_topics_ui())
+                    print(self.get_topics_details())
                     if self.topic_count == 0:
                         self.no_topics_button.visible = True
                 ui.Button("Remove", width=20, height=20, clicked_fn=remove_fields)
@@ -102,10 +107,10 @@ class Paho_mqttExtension(omni.ext.IExt):
                 with ui.CollapsableFrame("Connection details"):
                     with ui.VStack():
                         self.broker_name_field = label_create_v("Broker Name")
-                        self.host_ip_field = label_create_v("IP Address")
-                        self.port_field = label_create_v("Port")
+                        self.host_ip_field = label_create_v("IP Address *")
+                        self.port_field = label_create_v("Port *")
                         self.user_field = label_create_v("User Name")  
-                        self.password_field = label_create_v("Password",False)
+                        self.password_field = label_create_v("Password", True)
                         self.ca_crt_field = label_create_v("CA Certificate path (for TLS)")
 
                         self.ca_crt_checked = ui.CheckBox(margin = 0)
@@ -119,7 +124,7 @@ class Paho_mqttExtension(omni.ext.IExt):
                     self.field_container = ui.VStack()
                     with self.field_container:
                         self.topic_fields()
-                ui.Button("Execute",height=20, clicked_fn=self.run_program)
+                self.connect_button = ui.Button("Connect", height=20, clicked_fn=self.run_program)
                 ui.Separator(height = 20)
                 ui.Button("Save Details",height=20, clicked_fn=self.save_button)
                 ui.Separator(height = 20)
@@ -128,6 +133,7 @@ class Paho_mqttExtension(omni.ext.IExt):
     def save_ext_data(self):
         print(f"file path to save: {EXT_DATA_PATH}")
         os.makedirs(os.path.dirname(EXT_DATA_PATH), exist_ok=True)
+        topics = [(x[0], x[1], x[2].value) for x in self.get_topics_details()]
         data = {
             "broker_name":self.broker_name,
             "host_ip":self.host_ip,
@@ -135,7 +141,7 @@ class Paho_mqttExtension(omni.ext.IExt):
             "user":self.user,
             "password":self.password,
             "ca_crt":self.ca_crt,
-            "topics":self.get_values_from_topics_ui()
+            "topics": topics
         }
         try:
             with open(EXT_DATA_PATH,"w") as json_file:
@@ -161,12 +167,19 @@ class Paho_mqttExtension(omni.ext.IExt):
             data = json.load(json_file)
         return data
     
-    def get_values_from_topics_ui(self):
+    def get_topics_details(self):
+        error_message = ""
+        self.error_label.visible = False
         topics_events_types = []
         for topic, event, type in self.topic_event_type_ui_elements:
             to = topic.model.get_value_as_string()
             e = event.model.get_value_as_string()
-            ty = list(Type)[type.model.get_item_value_model().get_value_as_int()].value
+            if len(to) == 0 or len(e) == 0:
+                error_message = "Must provide non-empty topic and event\n"
+                self.error_label.visible = True
+                self.error_label.text = error_message
+                return []
+            ty = list(Type)[type.model.get_item_value_model().get_value_as_int()]
             topics_events_types.append((to, e, ty))
         return topics_events_types
 
@@ -185,6 +198,7 @@ class Paho_mqttExtension(omni.ext.IExt):
         for _ in range(len(topics) - self.topic_count):
            self.topic_fields() 
         print(f"topic count: {self.topic_count}")
+        self.no_topics_button.visible = not bool(self.topic_count)
 
         for (topic, event, type), (topic_ui, event_ui, type_ui) in zip(topics, self.topic_event_type_ui_elements):
             topic_ui.model.set_value(topic)
@@ -193,6 +207,7 @@ class Paho_mqttExtension(omni.ext.IExt):
         print("Loaded into UI")
     
     def get_connection_details(self):
+        self.error_label.visible = False
         error_message = ""
 
         self.broker_name = self.broker_name_field.model.get_value_as_string()
@@ -201,9 +216,9 @@ class Paho_mqttExtension(omni.ext.IExt):
             error_message = "IP Address required\n"
         try:
             self.port = int(self.port_field.model.get_value_as_string())
-            self.port_field.set_style({ "background_color": DEFAULT_LABEL_COLOR })
+            # self.port_field.set_style({ "background_color": DEFAULT_LABEL_COLOR })
         except ValueError as e:
-            self.port_field.set_style({ "background_color": "red" })
+            # self.port_field.set_style({ "background_color": "red" })
             error_message += "Port could not be converted to integer\n"
         self.user = self.user_field.model.get_value_as_string() 
         self.password = self.password_field.model.get_value_as_string()
@@ -220,20 +235,20 @@ class Paho_mqttExtension(omni.ext.IExt):
         self.save_ext_data()
         
     def run_program(self): # Collect values from the input fields
-        self.get_connection_details()
+        if self.client.is_connected():
+            self.client.disconnect()
 
-        self.topic_event_type = []
-        for topic, event, type in self.topic_event_type_ui_elements:
-            topic = topic.model.get_value_as_string()
-            event = event.model.get_value_as_string()
-            type = Type(type.model.get_item_value_model().get_value_as_int())
-            self.topic_event_type.append((topic, event, type))
+        if not self.get_connection_details() or not self.get_topics_details():
+            return
         
         try:
-            self.client.connect(self.host_ip, self.port)
-            self.client.username_pw_set(self.user, self.password)
-            if len(self.ca_crt) == 0:
+            print(f"attempting to connect to host {self.host_ip} and port {self.port}")
+            if len(self.user) and len(self.password):
+                self.client.username_pw_set(self.user, self.password)
+            if len(self.ca_crt):
                 self.client.tls_set(ca_certs=self.ca_crt)
+            print("connecting")
+            self.client.connect(self.host_ip, self.port)
             self.client.loop_start()
         except Exception as e: 
             print(f"Not connected {e}")
@@ -241,10 +256,21 @@ class Paho_mqttExtension(omni.ext.IExt):
     def on_shutdown(self):
         print("[ielabs.mqtt.test] ielabs mqtt test shutdownc")
         self.client.loop_stop()
+    
+    def disconnect(self):
+        print("disconnecting")
+        print(self.client.disconnect())
+
+    def on_disconnect(self, client, userdata, reason_code):
+        print("on disconnected")
+        self.connect_button.text = "Connect"
+        self.connect_button.set_clicked_fn(self.run_program)
 
     def on_connect(self, client, userdata, flags, rc):
         print("Connected with result code " + str(rc))
-        for topic, _, _ in self.topic_event_type:
+        self.connect_button.text = "Disconnect"
+        self.connect_button.set_clicked_fn(self.disconnect)
+        for topic, _, _ in self.get_topics_details():
             self.client.subscribe(topic)
 
     def decode(self, message: str, type: Type):
@@ -266,12 +292,13 @@ class Paho_mqttExtension(omni.ext.IExt):
         return result
 
     def on_message(self, client, userdata, msg):
-        for value in self.topic_event_type:
+        for value in self.get_topics_details():
             if value[0] != msg.topic: 
                 continue
             topic, event, type = value
             message_str = msg.payload.decode("utf-8")
             try:
+                print(f"type: {type}")
                 message = self.decode(message_str, type)
                 print(f"sending message {message} on bus {event}")
                 event_type = carb.events.type_from_string(event)
