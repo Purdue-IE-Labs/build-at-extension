@@ -235,22 +235,22 @@ class Paho_mqttExtension(omni.ext.IExt):
         return result
 
     def on_message(self, client, userdata, msg):
-        value = next((x for x in self.topic_event_type if x[0] == msg.topic), None)
-        if value is None:
-            print("error, couldnt' find topic")
-            return
-        topic, event, type = value
-        
-        # Decode the byte string to a regular string
-        message_str = msg.payload.decode("utf-8")
-        
-        try:
-            message = self.decode(message_str, type)
-            print(f"sending message {message} on bus {event}")
-            event_type = carb.events.type_from_string(event)
-            bus.push(event_type, payload={"msg": message})
-            topic = "Status_v2"
-            self.client.publish(topic,self.broker_name)
-        except ValueError as e:
-            print(f"Failed to convert input string to type: {e}")
+        for value in self.topic_event_type:
+            if value is None:
+                print("error, couldnt' find topic")
+                return
+            topic, event, type = value
             
+            # Decode the byte string to a regular string
+            message_str = msg.payload.decode("utf-8")
+            
+            try:
+                message = self.decode(message_str, type)
+                print(f"sending message {message} on bus {event}")
+                event_type = carb.events.type_from_string(event)
+                bus.push(event_type, payload={"msg": message})
+                topic = "Status_v2"
+                self.client.publish(topic,self.broker_name)
+            except ValueError as e:
+                print(f"Failed to convert input string to type: {e}")
+                
