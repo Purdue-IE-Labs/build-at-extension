@@ -70,7 +70,6 @@ class Paho_mqttExtension(omni.ext.IExt):
                         print("error, couldn't find ui elements")
                     field_set.visible = False
                     self.topic_count -= 1
-                    print(self.get_topics_details())
                     if self.topic_count == 0:
                         self.no_topics_button.visible = True
                 ui.Button("Remove", width=20, height=20, clicked_fn=remove_fields)
@@ -151,9 +150,7 @@ class Paho_mqttExtension(omni.ext.IExt):
             print("File not saved")    
             
     def load_ext_data(self):
-        if not pathlib.Path(EXT_DATA_PATH).is_file():
-            print("no saved data")
-            return {
+        default_data = {
                 "broker_name":"",
                 "host_ip":"",
                 "port":"",
@@ -162,9 +159,16 @@ class Paho_mqttExtension(omni.ext.IExt):
                 "ca_crt":"",
                 "topics":"",
             }
+        if not pathlib.Path(EXT_DATA_PATH).is_file():
+            print("no saved data")
+            return default_data
         data: dict
-        with open(EXT_DATA_PATH,"r") as json_file:
-            data = json.load(json_file)
+        try:
+            with open(EXT_DATA_PATH,"r") as json_file:
+                data = json.load(json_file)
+        except json.JSONDecodeError as e:
+            print("malformed data")
+            return default_data
         return data
     
     def get_topics_details(self):
@@ -231,8 +235,8 @@ class Paho_mqttExtension(omni.ext.IExt):
         return len(error_message) == 0
         
     def save_button(self):
-        self.get_connection_details()
-        self.save_ext_data()
+        if self.get_connection_details():
+            self.save_ext_data()
         
     def run_program(self): # Collect values from the input fields
         if self.client.is_connected():
@@ -267,11 +271,19 @@ class Paho_mqttExtension(omni.ext.IExt):
         self.connect_button.set_clicked_fn(self.run_program)
 
     def on_connect(self, client, userdata, flags, rc):
+        self.error_label.text = ""
+        self.error_label.visible = False
         print("Connected with result code " + str(rc))
         self.connect_button.text = "Disconnect"
         self.connect_button.set_clicked_fn(self.disconnect)
         for topic, _, _ in self.get_topics_details():
-            self.client.subscribe(topic)
+            try:
+                self.client.subscribe(topic)
+            except ValueError as e:
+                print(f"invalid topic: {topic}")
+                self.error_label.text = f"Invalid topic: {topic}"
+                self.error_label.visible = True
+                self.disconnect()
 
     def decode(self, message: str, type: Type):
         result = None
