@@ -46,7 +46,7 @@ class Paho_mqttExtension(omni.ext.IExt):
 
                 elements = (topic_field, custom_event_field, combo)
                 self.topic_event_type_ui_elements.append(elements)                    
-                ui.Button("Addition", width=20, height=20, clicked_fn=self.topic_fields)
+                ui.Button("Add", width=20, height=20, clicked_fn=self.topic_fields)
                 def remove_fields():
                     try:
                         self.topic_event_type_ui_elements.remove(elements)
@@ -93,7 +93,7 @@ class Paho_mqttExtension(omni.ext.IExt):
                         self.host_ip_field = label_create_v("IP Address")
                         self.port_field = label_create_v("Port")
                         self.user_field = label_create_v("User Name")  
-                        self.password_field = label_create_v("Password",False)
+                        self.password_field = label_create_v("Password",True)
                         self.ca_crt_field = label_create_v("CA Certificate path (for TLS)")
                         self.no_topics_add_button()
                 with ui.CollapsableFrame("Topics"):
