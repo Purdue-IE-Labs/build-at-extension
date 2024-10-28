@@ -1,3 +1,8 @@
+import sys
+sys.path.insert(0, "./build-at-extension/app/extscache/omni.ui-2.25.22+10a4b5c0.wx64.r.cp310")
+sys.path.insert(0, "./build-at-extension/app/kit/kernel/py")
+sys.path.insert(0, "./build-at-extension/app/**")
+
 import omni.kit.test
 
 # Extnsion for writing UI tests (simulate UI interaction)

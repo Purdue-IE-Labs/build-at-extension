@@ -1,1 +1,0 @@
-{"broker_name": "Central Broker", "host_ip": "192.168.4.128", "port": 8882, "user": "omin_user", "password": "Omniverse@123", "ca_crt": "C:\\Users\\iescale16\\build-at-extension\\exts\\ielabs.build.mqtt\\data\\ca.crt", "topics": [["Daisy_Joint_Positions", "ielabs.mqtt.TM_12_POS.Daisy", 4], ["Rosie_Joint_Positions", "ielabs.mqtt.TM_12_POS.Rosie", 4]]}

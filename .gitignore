@@ -12,3 +12,6 @@ _*/
 /app
 
 venv/
+
+exts/ielabs.build.mqtt/data/*.crt
+exts/ielabs.build.mqtt/data/*.json
