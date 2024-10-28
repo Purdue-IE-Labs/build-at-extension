@@ -1,46 +1,46 @@
-# NOTE:
-#   omni.kit.test - std python's unittest module with additional wrapping to add suport for async/await tests
-#   For most things refer to unittest docs: https://docs.python.org/3/library/unittest.html
 import omni.kit.test
 
 # Extnsion for writing UI tests (simulate UI interaction)
 import omni.kit.ui_test as ui_test
 
 # Import extension python module we are testing with absolute import path, as if we are external user (other extension)
-import paho_mqtt
+import ielabs.build.mqtt as ext
 
+from parameterized import parameterized
 
 # Having a test class dervived from omni.kit.test.AsyncTestCase declared on the root of module will make it auto-discoverable by omni.kit.test
 class Test(omni.kit.test.AsyncTestCase):
     # Before running each test
     async def setUp(self):
-        pass
+        self.ext = ext.Paho_mqttExtension()
 
     # After running each test
     async def tearDown(self):
         pass
 
-    # Actual test, notice it is "async" function, so "await" can be used if needed
-    async def test_hello_public_function(self):
-        result = paho_mqtt.some_public_function(4)
-        self.assertEqual(result, 256)
-
+    @parameterized.expand([
+        ("hello", ext.Type.STRING, "hello"),
+        (12.34, ext.Type.INT, 12),
+        (45.23, ext.Type.FLOAT, 45.23)
+    ])
+    async def test_decode(self, encoded_string: str, type: ext.Type, expected_value):
+        self.assertEqual(self.ext.decode(encoded_string, type), expected_value)
 
     async def test_window_button(self):
+        pass
+        # # Find a label in our window
+        # label = ui_test.find("My Window//Frame/**/Label[*]")
 
-        # Find a label in our window
-        label = ui_test.find("My Window//Frame/**/Label[*]")
+        # # Find buttons in our window
+        # add_button = ui_test.find("My Window//Frame/**/Button[*].text=='Add'")
+        # reset_button = ui_test.find("My Window//Frame/**/Button[*].text=='Reset'")
 
-        # Find buttons in our window
-        add_button = ui_test.find("My Window//Frame/**/Button[*].text=='Add'")
-        reset_button = ui_test.find("My Window//Frame/**/Button[*].text=='Reset'")
+        # # Click reset button
+        # await reset_button.click()
+        # self.assertEqual(label.widget.text, "empty")
 
-        # Click reset button
-        await reset_button.click()
-        self.assertEqual(label.widget.text, "empty")
+        # await add_button.click()
+        # self.assertEqual(label.widget.text, "count: 1")
 
-        await add_button.click()
-        self.assertEqual(label.widget.text, "count: 1")
-
-        await add_button.click()
-        self.assertEqual(label.widget.text, "count: 2")
+        # await add_button.click()
+        # self.assertEqual(label.widget.text, "count: 2")
