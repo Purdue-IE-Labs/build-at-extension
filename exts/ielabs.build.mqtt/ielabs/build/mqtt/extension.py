@@ -11,20 +11,20 @@ from omni.kit.app import get_app
 import pathlib
 from enum import Enum
 
+
 class Type(Enum):
     INT = "int"
     FLOAT = "float"
     STRING = "string"
+    BOOL = "bool"
     ARRAY_INT = "array<int>"
     ARRAY_FLOAT = "array<float>"
     ARRAY_STRING = "array<string>"
+    ARRAY_BOOL = "array<bool>"
 
 # Daisy_DATA = carb.events.type_from_string("ielabs.mqtt.TM_12_POS.Daisy")
 EXT_DATA_PATH = pathlib.PurePath(__file__).parents[3] / "data" / "ext_data.json"
-Rosie_DATA = carb.events.type_from_string("ielabs.mqtt.TM_12_POS.Rosie")
 bus = get_app().get_message_bus_event_stream()
-
-DEFAULT_LABEL_COLOR = "0x1f2124" 
 
 # Any class derived from `omni.ext.IExt` in top level module (defined in `python.modules` of `extension.toml`) will be
 # instantiated when extension gets enabled and `on_startup(ext_id)` will be called. Later when extension gets disabled
@@ -39,6 +39,7 @@ class Paho_mqttExtension(omni.ext.IExt):
         self.client.on_connect = self.on_connect
         self.client.on_message = self.on_message
         self.client.on_disconnect = self.on_disconnect
+        self.client.on_connect_fail = self.on_connect_fail
         self.combo: ui.ComboBox
         self.topic_event_type_ui_elements = []
         self.field_container: ui.VStack
@@ -58,8 +59,9 @@ class Paho_mqttExtension(omni.ext.IExt):
                 custom_event_field = ui.StringField(height = 20, width = 200)
                 ui.Separator(height = 10)
                 ui.Label("Data Type", height = 20, width = 50)
-                combo = ui.ComboBox(0, *[x.value for x in Type])
+                combo = ui.ComboBox(0, *[x.value for x in Type], width = 90)
 
+                ui.Separator(height = 10)
                 elements = (topic_field, custom_event_field, combo)
                 self.topic_event_type_ui_elements.append(elements)                    
                 ui.Button("Add", width=20, height=20, clicked_fn=self.topic_fields)
@@ -83,13 +85,6 @@ class Paho_mqttExtension(omni.ext.IExt):
         self.no_topics_button.visible = False
     
     def on_startup(self, ext_id):
-        # self.host_ip = "192.168.4.128"
-        # self.port = 8882
-        # self.user = "omni_user"
-        # self.password = "Omniverse@123"
-        # self.ca_crt = r"C:\Users\iescale16\Documents\Kit\apps\exttest_ielabs_mqtt_addition\exts\paho_mqtt\data\ca.crt"
-        # self.mqtt_topic = "Daisy_Joint_Positions"
-        # self.custom_event = "ielabs.mqtt.TM_12_POS.Daisy"
         self.topic_count = 0
 
         def label_create_v(name,psw=False):    
@@ -100,7 +95,7 @@ class Paho_mqttExtension(omni.ext.IExt):
         
         print("[paho_mqtt] paho_mqtt startup")
         self._count = 0
-        self._window = ui.Window("MQTT Broker details")
+        self._window = ui.Window("MQTT Broker details", width = 1100, height = 800)
         with self._window.frame:
             with ui.VStack():
                 with ui.CollapsableFrame("Connection details"):
@@ -111,23 +106,23 @@ class Paho_mqttExtension(omni.ext.IExt):
                         self.user_field = label_create_v("User Name")  
                         self.password_field = label_create_v("Password", True)
                         self.ca_crt_field = label_create_v("CA Certificate path (for TLS)")
-
                         self.ca_crt_checked = ui.CheckBox(margin = 0)
                         self.ca_crt_checked.model.set_value(True)
                         def checked(value: ui.AbstractValueModel):
                             self.ca_crt_field.visible = value.get_value_as_bool()
                         self.ca_crt_checked.model.add_value_changed_fn(checked)
-                        self.error_label = ui.Label("", visible=False)
+                        self.error_label = ui.Label("", visible=False, height = 70)
+                        self.error_label.set_style({ "color": "red", "font_size": 20.0 })
                         self.no_topics_add_button()
                 with ui.CollapsableFrame("Topics"):
                     self.field_container = ui.VStack()
                     with self.field_container:
                         self.topic_fields()
-                self.connect_button = ui.Button("Connect", height=20, clicked_fn=self.run_program)
-                ui.Separator(height = 20)
-                ui.Button("Save Details",height=20, clicked_fn=self.save_button)
-                ui.Separator(height = 20)
-                ui.Button("Load Previous Details",height=20, clicked_fn=self.initialize_ui)
+                self.connect_button = ui.Button("Connect", height=50, clicked_fn=self.run_program)
+                ui.Separator(height = 10)
+                ui.Button("Save Details",height=50, clicked_fn=self.save_button)
+                ui.Separator(height = 10)
+                ui.Button("Load Previous Details",height=50, clicked_fn=self.initialize_ui)
                  
     def save_ext_data(self):
         print(f"file path to save: {EXT_DATA_PATH}")
@@ -197,11 +192,8 @@ class Paho_mqttExtension(omni.ext.IExt):
         self.ca_crt_field.model.set_value(data.get("ca_crt",""))
         self.ca_crt_checked.model.set_value(bool(len(data.get("ca_crt", ""))))
         topics: list = list(data.get("topics", []))
-        print(f"topics saved: {topics}")
-        print(f"topic count: {self.topic_count}")
         for _ in range(len(topics) - self.topic_count):
            self.topic_fields() 
-        print(f"topic count: {self.topic_count}")
         self.no_topics_button.visible = not bool(self.topic_count)
 
         for (topic, event, type), (topic_ui, event_ui, type_ui) in zip(topics, self.topic_event_type_ui_elements):
@@ -220,9 +212,7 @@ class Paho_mqttExtension(omni.ext.IExt):
             error_message = "IP Address required\n"
         try:
             self.port = int(self.port_field.model.get_value_as_string())
-            # self.port_field.set_style({ "background_color": DEFAULT_LABEL_COLOR })
         except ValueError as e:
-            # self.port_field.set_style({ "background_color": "red" })
             error_message += "Port could not be converted to integer\n"
         self.user = self.user_field.model.get_value_as_string() 
         self.password = self.password_field.model.get_value_as_string()
@@ -255,7 +245,8 @@ class Paho_mqttExtension(omni.ext.IExt):
             self.client.connect(self.host_ip, self.port)
             self.client.loop_start()
         except Exception as e: 
-            print(f"Not connected {e}")
+            self.error_label.text = f"Failed to connect to broker, error: {e}"
+            self.error_label.visible = True
         
     def on_shutdown(self):
         print("[ielabs.mqtt.test] ielabs mqtt test shutdownc")
@@ -264,6 +255,10 @@ class Paho_mqttExtension(omni.ext.IExt):
     def disconnect(self):
         print("disconnecting")
         print(self.client.disconnect())
+
+    def on_connect_fail(self, client, userdata):
+        self.error_label.text = f"Client failed to connect to broker\n"
+        self.error_label.visible = True
 
     def on_disconnect(self, client, userdata, reason_code):
         print("on disconnected")
@@ -274,6 +269,16 @@ class Paho_mqttExtension(omni.ext.IExt):
         self.error_label.text = ""
         self.error_label.visible = False
         print("Connected with result code " + str(rc))
+        if rc:
+            error_mapping = {
+                1: "Connection refused - incorrect protocol version",
+                2: "Connection refused - invalid client identifier",
+                3: "Connection refused - server unavailable",
+                4: "Connection refused - bad username or password",
+                5: "Connection refused - not authorised",
+            }
+            self.error_label.text = error_mapping[rc]
+            self.error_label.visible = True
         self.connect_button.text = "Disconnect"
         self.connect_button.set_clicked_fn(self.disconnect)
         for topic, _, _ in self.get_topics_details():
@@ -295,12 +300,16 @@ class Paho_mqttExtension(omni.ext.IExt):
                 result = float(message)
             case Type.STRING:
                 result = message
+            case Type.BOOL:
+                result = bool(message)
             case Type.ARRAY_INT:
                 result = list(map(int, list(json.loads(message))))
             case Type.ARRAY_FLOAT:
                 result = list(map(float, list(json.loads(message))))
             case Type.ARRAY_STRING:
                 result = list(map(str, list(json.loads(message))))
+            case Type.ARRAY_BOOL:
+                result = list(map(bool, list(json.loads(message))))
         return result
 
     def on_message(self, client, userdata, msg):
@@ -315,8 +324,6 @@ class Paho_mqttExtension(omni.ext.IExt):
                 print(f"sending message {message} on bus {event}")
                 event_type = carb.events.type_from_string(event)
                 bus.push(event_type, payload={"msg": message})
-                topic = "Status_v2"
-                self.client.publish(topic,self.broker_name)
             except ValueError as e:
                 print(f"Failed to convert input {message_str} to type {type.name}: {e}")
                 
