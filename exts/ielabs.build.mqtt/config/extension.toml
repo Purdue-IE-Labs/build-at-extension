@@ -3,7 +3,7 @@
 version = "1.0.0"
 
 # Lists people or organizations that are considered the "authors" of the package.
-authors = ["Matthew Lanum, Dhanushraj Balraj, Sowmyashree Bharathan"]
+authors = ["Matthew Lanum", "Dhanushraj Balraj", "Sowmyashree Bharathan", "Grayson Nocera"]
 
 # The title and description fields are primarily for displaying extension info in UI
 title = "MQTT Broker adder"
@@ -36,15 +36,18 @@ icon = "data/icon.png"
 [dependencies]
 "omni.kit.uiapp" = {}
 
-# Main python module this extension provides, it will be publicly available as "import paho_mqtt".
+# Main python module this extension provides, it will be publicly available as "import ielabs.build.mqtt".
 [[python.module]]
 name = "ielabs.build.mqtt"
 
 [[test]]
 # Extra dependencies only to be used during test run
 dependencies = [
-    "omni.kit.ui_test" # UI testing extension
+    "omni.kit.ui_test", # UI testing extension
+    "omni.kit.test",
+    "parameterized"
 ]
+
 [python.pipapi]
 requirements=["paho-mqtt"]
 use_online_index = true
