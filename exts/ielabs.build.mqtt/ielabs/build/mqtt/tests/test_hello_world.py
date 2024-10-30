@@ -1,8 +1,10 @@
 import sys
-sys.path.insert(0, "./build-at-extension/app/extscache/omni.ui-2.25.22+10a4b5c0.wx64.r.cp310")
-sys.path.insert(0, "./build-at-extension/app/kit/kernel/py")
-sys.path.insert(0, "./build-at-extension/app/**")
+sys.path.insert(0, "./app/extscache/omni.ui-2.25.22+10a4b5c0.wx64.r.cp310/")
+sys.path.insert(0, "./app/kit/kernel/py/")
+sys.path.insert(0, "./app/")
+sys.path.insert(0, "./app/extscache/omni.kit.test-1.1.0+10a4b5c0.wx64.r.cp310/")
 
+print(sys.path)
 import omni.kit.test
 
 # Extnsion for writing UI tests (simulate UI interaction)
@@ -26,15 +28,23 @@ class Test(omni.kit.test.AsyncTestCase):
     @parameterized.expand([
         ("hello", ext.Type.STRING, "hello"),
         (12.34, ext.Type.INT, 12),
-        (45.23, ext.Type.FLOAT, 45.23)
+        (45.23, ext.Type.FLOAT, 45.23),
+        ("23.1", ext.Type.ARRAY_STRING, "23.1"),
+        (0, ext.Type.BOOL, False)
     ])
     async def test_decode(self, encoded_string: str, type: ext.Type, expected_value):
         self.assertEqual(self.ext.decode(encoded_string, type), expected_value)
 
+    @parameterized.expand([
+        ("hello", ext.Type.INT),
+    ])
+    async def test_fail_decode(self, encoded_string: str, type: ext.Type):
+        with self.assertRaises(ValueError) as e:
+            self.ext.decode(encoded_string, type)
+
     async def test_window_button(self):
-        pass
         # # Find a label in our window
-        # label = ui_test.find("My Window//Frame/**/Label[*]")
+        label = ui_test.find("My Window//Frame/**/Label[*]")
 
         # # Find buttons in our window
         # add_button = ui_test.find("My Window//Frame/**/Button[*].text=='Add'")
